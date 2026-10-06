@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Blocks every network request: no fetches, images, fonts or external scripts can load. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>Dice Seed Generator</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --text: #1d1d1b; --muted: #6b6a66; --border: #dddbd5;
+    --accent: #c2410c; --accent-text: #ffffff; --warn-bg: #fff4e5; --warn-border: #f0c58a; --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --card: #1f1f1d; --text: #ecebe6; --muted: #9c9a93; --border: #3a3936;
+      --accent: #f97316; --accent-text: #141413; --warn-bg: #2b2013; --warn-border: #6b4a1f; --ok: #4ade80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .warn { background: var(--warn-bg); border-color: var(--warn-border); }
+  .warn ul { margin: 6px 0 0; padding-left: 20px; }
+  #netStatus { font-weight: 600; }
+  h2 { font-size: 1rem; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .seg { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .seg label { flex: 1 1 200px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+  .seg label:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .seg input { margin-right: 8px; accent-color: var(--accent); }
+  .seg small { display: block; color: var(--muted); margin-left: 24px; }
+  .dice { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .dice button { font-size: 1.8rem; font-weight: 700; padding: 18px 0; }
+  button { font: inherit; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; padding: 10px 14px; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .progress { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin: 14px 0 6px; }
+  .progress div { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  .count { display: flex; justify-content: space-between; color: var(--muted); font-size: .9rem; }
+  .rolls { font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; letter-spacing: .08em; min-height: 1.5em; margin-top: 8px; }
+  .words { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .words li { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.05rem; }
+  .words li span { color: var(--muted); display: inline-block; min-width: 2.2em; }
+  .words li.device { border-style: dashed; color: var(--muted); }
+  .note { color: var(--muted); font-size: .92rem; margin: 12px 0 0; }
+  .ok { color: var(--ok); }
+  kbd { font-family: ui-monospace, Menlo, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; font-size: .85em; }
+  @media (max-width: 420px) { .dice button { font-size: 1.4rem; padding: 14px 0; } }
+  @media print { .no-print { display: none !important; } body { background: #fff; color: #000; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Dice Seed Generator</h1>
+  <p class="sub">Turn physical dice rolls into a BIP39 seed phrase, entirely offline.</p>
+
+  <div class="card warn no-print">
+    <strong>Before you start</strong> · Network: <span id="netStatus">checking…</span>
+    <ul>
+      <li>Disconnect from wifi/ethernet (or use an airgapped computer) and open this file from disk.</li>
+      <li>Use a private/incognito window and turn off browser extensions.</li>
+      <li>Roll a real, fair die. Don't make up numbers, because people are bad at randomness.</li>
+      <li>Don't screenshot or photograph the words. Write them on paper or metal, then close this tab.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>1 · Settings</h2>
+    <div class="seg" id="lenSeg">
+      <label><input type="radio" name="len" value="12" checked>12 words<small>50 rolls · 128-bit</small></label>
+      <label><input type="radio" name="len" value="24">24 words<small>99 rolls · 256-bit</small></label>
+    </div>
+    <div class="seg" id="outSeg">
+      <label><input type="radio" name="out" value="full" checked>Full seed<small>This page computes the checksum word</small></label>
+      <label><input type="radio" name="out" value="partial">All but the last word<small>Your hardware wallet picks the final word</small></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Roll</h2>
+    <div class="dice" id="dice">
+      <button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button>
+      <button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button>
+    </div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="count"><span id="countText">0 / 50 rolls</span><span>Keys <kbd>1</kbd>–<kbd>6</kbd>, <kbd>Backspace</kbd> undoes</span></div>
+    <div class="rolls" id="rolls"></div>
+    <div class="row">
+      <button id="undo">Undo</button>
+      <button id="clear">Clear rolls</button>
+      <button id="gen" class="primary" disabled>Generate words</button>
+    </div>
+    <p class="note">You can roll more than the minimum if you like. Every roll is included in the hash.</p>
+  </div>
+
+  <div class="card" id="result" hidden>
+    <h2>3 · Your words</h2>
+    <ol class="words" id="words"></ol>
+    <p class="note" id="resultNote"></p>
+    <div class="row no-print">
+      <button id="wipe">Wipe everything</button>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>How it works</h2>
+    <p class="note" style="margin-top:0">
+      The rolls are joined into a text string (for example <code>3615…</code>) and hashed with SHA-256.
+      For 12 words the first 16 bytes of the hash become the entropy; for 24 words all 32 bytes do.
+      The entropy is then encoded as a standard BIP39 mnemonic.
+      This is the same method Coldcard and SeedSigner use for dice seeds, so you can enter the same rolls on one of those devices and check that the words match.
+      If you choose "all but the last word", only the first 11/23 words are shown. Each of those words comes straight from the entropy bits. The final word holds a few more entropy bits plus the checksum, and your device works it out.
+    </p>
+    <p class="note" id="selfTest"></p>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+const WORDLIST = "abandon ability able about above absent absorb abstract absurd abuse access accident account accuse achieve acid acoustic acquire across act action actor actress actual adapt add addict address adjust admit adult advance advice aerobic affair afford afraid again age agent agree ahead aim air airport aisle alarm album alcohol alert alien all alley allow almost alone alpha already also alter always amateur amazing among amount amused analyst anchor ancient anger angle angry animal ankle announce annual another answer antenna antique anxiety any apart apology appear apple approve april arch arctic area arena argue arm armed armor army around arrange arrest arrive arrow art artefact artist artwork ask aspect assault asset assist assume asthma athlete atom attack attend attitude attract auction audit august aunt author auto autumn average avocado avoid awake aware away awesome awful awkward axis baby bachelor bacon badge bag balance balcony ball bamboo banana banner bar barely bargain barrel base basic basket battle beach bean beauty because become beef before begin behave behind believe below belt bench benefit best betray better between beyond bicycle bid bike bind biology bird birth bitter black blade blame blanket blast bleak bless blind blood blossom blouse blue blur blush board boat body boil bomb bone bonus book boost border boring borrow boss bottom bounce box boy bracket brain brand brass brave bread breeze brick bridge brief bright bring brisk broccoli broken bronze broom brother brown brush bubble buddy budget buffalo build bulb bulk bullet bundle bunker burden burger burst bus business busy butter buyer buzz cabbage cabin cable cactus cage cake call calm camera camp can canal cancel candy cannon canoe canvas canyon capable capital captain car carbon card cargo carpet carry cart case cash casino castle casual cat catalog catch category cattle caught cause caution cave ceiling celery cement census century cereal certain chair chalk champion change chaos chapter charge chase chat cheap check cheese chef cherry chest chicken chief child chimney choice choose chronic chuckle chunk churn cigar cinnamon circle citizen city civil claim clap clarify claw clay clean clerk clever click client cliff climb clinic clip clock clog close cloth cloud clown club clump cluster clutch coach coast coconut code coffee coil coin collect color column combine come comfort comic common company concert conduct confirm congress connect consider control convince cook cool copper copy coral core corn correct cost cotton couch country couple course cousin cover coyote crack cradle craft cram crane crash crater crawl crazy cream credit creek crew cricket crime crisp critic crop cross crouch crowd crucial cruel cruise crumble crunch crush cry crystal cube culture cup cupboard curious current curtain curve cushion custom cute cycle dad damage damp dance danger daring dash daughter dawn day deal debate debris decade december decide decline decorate decrease deer defense define defy degree delay deliver demand demise denial dentist deny depart depend deposit depth deputy derive describe desert design desk despair destroy detail detect develop device devote diagram dial diamond diary dice diesel diet differ digital dignity dilemma dinner dinosaur direct dirt disagree discover disease dish dismiss disorder display distance divert divide divorce dizzy doctor document dog doll dolphin domain donate donkey donor door dose double dove draft dragon drama drastic draw dream dress drift drill drink drip drive drop drum dry duck dumb dune during dust dutch duty dwarf dynamic eager eagle early earn earth easily east easy echo ecology economy edge edit educate effort egg eight either elbow elder electric elegant element elephant elevator elite else embark embody embrace emerge emotion employ empower empty enable enact end endless endorse enemy energy enforce engage engine enhance enjoy enlist enough enrich enroll ensure enter entire entry envelope episode equal equip era erase erode erosion error erupt escape essay essence estate eternal ethics evidence evil evoke evolve exact example excess exchange excite exclude excuse execute exercise exhaust exhibit exile exist exit exotic expand expect expire explain expose express extend extra eye eyebrow fabric face faculty fade faint faith fall false fame family famous fan fancy fantasy farm fashion fat fatal father fatigue fault favorite feature february federal fee feed feel female fence festival fetch fever few fiber fiction field figure file film filter final find fine finger finish fire firm first fiscal fish fit fitness fix flag flame flash flat flavor flee flight flip float flock floor flower fluid flush fly foam focus fog foil fold follow food foot force forest forget fork fortune forum forward fossil foster found fox fragile frame frequent fresh friend fringe frog front frost frown frozen fruit fuel fun funny furnace fury future gadget gain galaxy gallery game gap garage garbage garden garlic garment gas gasp gate gather gauge gaze general genius genre gentle genuine gesture ghost giant gift giggle ginger giraffe girl give glad glance glare glass glide glimpse globe gloom glory glove glow glue goat goddess gold good goose gorilla gospel gossip govern gown grab grace grain grant grape grass gravity great green grid grief grit grocery group grow grunt guard guess guide guilt guitar gun gym habit hair half hammer hamster hand happy harbor hard harsh harvest hat have hawk hazard head health heart heavy hedgehog height hello helmet help hen hero hidden high hill hint hip hire history hobby hockey hold hole holiday hollow home honey hood hope horn horror horse hospital host hotel hour hover hub huge human humble humor hundred hungry hunt hurdle hurry hurt husband hybrid ice icon idea identify idle ignore ill illegal illness image imitate immense immune impact impose improve impulse inch include income increase index indicate indoor industry infant inflict inform inhale inherit initial inject injury inmate inner innocent input inquiry insane insect inside inspire install intact interest into invest invite involve iron island isolate issue item ivory jacket jaguar jar jazz jealous jeans jelly jewel job join joke journey joy judge juice jump jungle junior junk just kangaroo keen keep ketchup key kick kid kidney kind kingdom kiss kit kitchen kite kitten kiwi knee knife knock know lab label labor ladder lady lake lamp language laptop large later latin laugh laundry lava law lawn lawsuit layer lazy leader leaf learn leave lecture left leg legal legend leisure lemon lend length lens leopard lesson letter level liar liberty library license life lift light like limb limit link lion liquid list little live lizard load loan lobster local lock logic lonely long loop lottery loud lounge love loyal lucky luggage lumber lunar lunch luxury lyrics machine mad magic magnet maid mail main major make mammal man manage mandate mango mansion manual maple marble march margin marine market marriage mask mass master match material math matrix matter maximum maze meadow mean measure meat mechanic medal media melody melt member memory mention menu mercy merge merit merry mesh message metal method middle midnight milk million mimic mind minimum minor minute miracle mirror misery miss mistake mix mixed mixture mobile model modify mom moment monitor monkey monster month moon moral more morning mosquito mother motion motor mountain mouse move movie much muffin mule multiply muscle museum mushroom music must mutual myself mystery myth naive name napkin narrow nasty nation nature near neck need negative neglect neither nephew nerve nest net network neutral never news next nice night noble noise nominee noodle normal north nose notable note nothing notice novel now nuclear number nurse nut oak obey object oblige obscure observe obtain obvious occur ocean october odor off offer office often oil okay old olive olympic omit once one onion online only open opera opinion oppose option orange orbit orchard order ordinary organ orient original orphan ostrich other outdoor outer output outside oval oven over own owner oxygen oyster ozone pact paddle page pair palace palm panda panel panic panther paper parade parent park parrot party pass patch path patient patrol pattern pause pave payment peace peanut pear peasant pelican pen penalty pencil people pepper perfect permit person pet phone photo phrase physical piano picnic picture piece pig pigeon pill pilot pink pioneer pipe pistol pitch pizza place planet plastic plate play please pledge pluck plug plunge poem poet point polar pole police pond pony pool popular portion position possible post potato pottery poverty powder power practice praise predict prefer prepare present pretty prevent price pride primary print priority prison private prize problem process produce profit program project promote proof property prosper protect proud provide public pudding pull pulp pulse pumpkin punch pupil puppy purchase purity purpose purse push put puzzle pyramid quality quantum quarter question quick quit quiz quote rabbit raccoon race rack radar radio rail rain raise rally ramp ranch random range rapid rare rate rather raven raw razor ready real reason rebel rebuild recall receive recipe record recycle reduce reflect reform refuse region regret regular reject relax release relief rely remain remember remind remove render renew rent reopen repair repeat replace report require rescue resemble resist resource response result retire retreat return reunion reveal review reward rhythm rib ribbon rice rich ride ridge rifle right rigid ring riot ripple risk ritual rival river road roast robot robust rocket romance roof rookie room rose rotate rough round route royal rubber rude rug rule run runway rural sad saddle sadness safe sail salad salmon salon salt salute same sample sand satisfy satoshi sauce sausage save say scale scan scare scatter scene scheme school science scissors scorpion scout scrap screen script scrub sea search season seat second secret section security seed seek segment select sell seminar senior sense sentence series service session settle setup seven shadow shaft shallow share shed shell sheriff shield shift shine ship shiver shock shoe shoot shop short shoulder shove shrimp shrug shuffle shy sibling sick side siege sight sign silent silk silly silver similar simple since sing siren sister situate six size skate sketch ski skill skin skirt skull slab slam sleep slender slice slide slight slim slogan slot slow slush small smart smile smoke smooth snack snake snap sniff snow soap soccer social sock soda soft solar soldier solid solution solve someone song soon sorry sort soul sound soup source south space spare spatial spawn speak special speed spell spend sphere spice spider spike spin spirit split spoil sponsor spoon sport spot spray spread spring spy square squeeze squirrel stable stadium staff stage stairs stamp stand start state stay steak steel stem step stereo stick still sting stock stomach stone stool story stove strategy street strike strong struggle student stuff stumble style subject submit subway success such sudden suffer sugar suggest suit summer sun sunny sunset super supply supreme sure surface surge surprise surround survey suspect sustain swallow swamp swap swarm swear sweet swift swim swing switch sword symbol symptom syrup system table tackle tag tail talent talk tank tape target task taste tattoo taxi teach team tell ten tenant tennis tent term test text thank that theme then theory there they thing this thought three thrive throw thumb thunder ticket tide tiger tilt timber time tiny tip tired tissue title toast tobacco today toddler toe together toilet token tomato tomorrow tone tongue tonight tool tooth top topic topple torch tornado tortoise toss total tourist toward tower town toy track trade traffic tragic train transfer trap trash travel tray treat tree trend trial tribe trick trigger trim trip trophy trouble truck true truly trumpet trust truth try tube tuition tumble tuna tunnel turkey turn turtle twelve twenty twice twin twist two type typical ugly umbrella unable unaware uncle uncover under undo unfair unfold unhappy uniform unique unit universe unknown unlock until unusual unveil update upgrade uphold upon upper upset urban urge usage use used useful useless usual utility vacant vacuum vague valid valley valve van vanish vapor various vast vault vehicle velvet vendor venture venue verb verify version very vessel veteran viable vibrant vicious victory video view village vintage violin virtual virus visa visit visual vital vivid vocal voice void volcano volume vote voyage wage wagon wait walk wall walnut want warfare warm warrior wash wasp waste water wave way wealth weapon wear weasel weather web wedding weekend weird welcome west wet whale what wheat wheel when where whip whisper wide width wife wild will win window wine wing wink winner winter wire wisdom wise wish witness wolf woman wonder wood wool word work world worry worth wrap wreck wrestle wrist write wrong yard year yellow you young youth zebra zero zone zoo".split(" ");
+
+// --- SHA-256 (FIPS 180-4), pure JS so it works on file:// in any browser ---
+const K = new Uint32Array([
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+]);
+
+function sha256(msg) {
+  const len = msg.length;
+  const total = Math.ceil((len + 9) / 64) * 64;
+  const buf = new Uint8Array(total);
+  buf.set(msg);
+  buf[len] = 0x80;
+  const bitLen = len * 8;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(total - 8, Math.floor(bitLen / 0x100000000));
+  dv.setUint32(total - 4, bitLen >>> 0);
+
+  const H = new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+  const W = new Uint32Array(64);
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+
+  for (let off = 0; off < total; off += 64) {
+    for (let i = 0; i < 16; i++) W[i] = dv.getUint32(off + i * 4);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(W[i-15], 7) ^ rotr(W[i-15], 18) ^ (W[i-15] >>> 3);
+      const s1 = rotr(W[i-2], 17) ^ rotr(W[i-2], 19) ^ (W[i-2] >>> 10);
+      W[i] = (W[i-16] + s0 + W[i-7] + s1) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[i] + W[i]) >>> 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0;
+      d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H[0] += a; H[1] += b; H[2] += c; H[3] += d; H[4] += e; H[5] += f; H[6] += g; H[7] += h;
+  }
+  const out = new Uint8Array(32);
+  const odv = new DataView(out.buffer);
+  for (let i = 0; i < 8; i++) odv.setUint32(i * 4, H[i]);
+  return out;
+}
+
+const ascii = s => Uint8Array.from(s, ch => ch.charCodeAt(0));
+const toHex = b => Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+const toBits = b => Array.from(b, x => x.toString(2).padStart(8, "0")).join("");
+
+// BIP39: entropy bytes -> mnemonic words (checksum = first ENT/32 bits of SHA-256(entropy))
+function entropyToMnemonic(entropy) {
+  const ent = entropy.length * 8;
+  const bits = toBits(entropy) + toBits(sha256(entropy)).slice(0, ent / 32);
+  const words = [];
+  for (let i = 0; i < bits.length; i += 11) words.push(WORDLIST[parseInt(bits.slice(i, i + 11), 2)]);
+  return words;
+}
+
+// Coldcard / SeedSigner dice method: SHA-256 of the ASCII roll string, truncated to the entropy size.
+function rollsToMnemonic(rolls, wordCount) {
+  const hash = sha256(ascii(rolls));
+  return entropyToMnemonic(hash.slice(0, wordCount === 12 ? 16 : 32));
+}
+
+// --- Self-test against known vectors, so a corrupted copy of this file refuses to run ---
+function selfTest() {
+  const checks = [
+    toHex(sha256(ascii(""))) === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    toHex(sha256(ascii("abc"))) === "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    WORDLIST.length === 2048 && WORDLIST[0] === "abandon" && WORDLIST[2047] === "zoo",
+    // BIP39 official test vectors
+    entropyToMnemonic(new Uint8Array(16)).join(" ") === "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    entropyToMnemonic(new Uint8Array(32).fill(0xff)).join(" ") === "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote",
+    entropyToMnemonic(new Uint8Array(16).fill(0x7f)).join(" ") === "legal winner thank year wave sausage worth useful legal winner thank yellow",
+  ];
+  return checks.every(Boolean);
+}
+
+// --- UI ---
+const $ = id => document.getElementById(id);
+let rolls = "";
+
+const wordCount = () => Number(document.querySelector('input[name="len"]:checked').value);
+const target = () => (wordCount() === 12 ? 50 : 99);
+const outMode = () => document.querySelector('input[name="out"]:checked').value;
+
+function render() {
+  const t = target();
+  $("countText").textContent = `${rolls.length} / ${t} rolls` + (rolls.length >= t ? " ✓" : "");
+  $("countText").className = rolls.length >= t ? "ok" : "";
+  $("bar").style.width = Math.min(100, (rolls.length / t) * 100) + "%";
+  $("rolls").textContent = rolls.replace(/(.{10})/g, "$1 ").trim();
+  $("gen").disabled = !testOk || rolls.length < t;
+  $("undo").disabled = $("clear").disabled = rolls.length === 0;
+  $("result").hidden = true;
+  $("words").textContent = "";
+}
+
+function addRoll(v) { rolls += v; render(); }
+
+function generate() {
+  if (rolls.length < target()) return;
+  const n = wordCount();
+  const words = rollsToMnemonic(rolls, n);
+  const partial = outMode() === "partial";
+  const list = $("words");
+  list.textContent = "";
+  words.forEach((w, i) => {
+    const li = document.createElement("li");
+    const num = document.createElement("span");
+    num.textContent = (i + 1) + ".";
+    li.append(num);
+    if (partial && i === n - 1) {
+      li.className = "device";
+      li.append(" device picks");
+    } else {
+      li.append(" " + w);
+    }
+    list.append(li);
+  });
+  $("resultNote").textContent = partial
+    ? `Enter these ${n - 1} words on your hardware wallet and let it calculate word ${n}. ` +
+      `Your device may choose a different valid last word than the "full seed" option would. That's normal: several words pass the checksum, and any of them is valid.`
+    : `This full ${n}-word seed includes the checksum word. On a Coldcard or SeedSigner, entering the same ${rolls.length} rolls should give exactly these words.`;
+  $("result").hidden = false;
+  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function wipe() {
+  rolls = "";
+  render();
+  window.scrollTo(0, 0);
+}
+
+$("dice").addEventListener("click", e => { const v = e.target.dataset.v; if (v) addRoll(v); });
+$("undo").addEventListener("click", () => { rolls = rolls.slice(0, -1); render(); });
+$("clear").addEventListener("click", () => { rolls = ""; render(); });
+$("gen").addEventListener("click", generate);
+$("wipe").addEventListener("click", wipe);
+document.querySelectorAll('input[name="len"], input[name="out"]').forEach(r => r.addEventListener("change", render));
+
+document.addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (/^[1-6]$/.test(e.key)) { e.preventDefault(); addRoll(e.key); }
+  else if (e.key === "Backspace") { e.preventDefault(); rolls = rolls.slice(0, -1); render(); }
+  else if (e.key === "Enter" && !$("gen").disabled) { e.preventDefault(); generate(); }
+});
+
+function updateNet() {
+  const el = $("netStatus");
+  el.textContent = navigator.onLine ? "ONLINE: disconnect before rolling" : "offline ✓";
+  el.className = navigator.onLine ? "" : "ok";
+  el.style.color = navigator.onLine ? "var(--accent)" : "";
+}
+window.addEventListener("online", updateNet);
+window.addEventListener("offline", updateNet);
+updateNet();
+
+const testOk = selfTest();
+$("selfTest").textContent = testOk
+  ? "Self-test passed: SHA-256 and BIP39 test vectors match and the wordlist is intact."
+  : "SELF-TEST FAILED: this file may be corrupted. Do not use it.";
+$("selfTest").className = "note " + (testOk ? "ok" : "");
+if (!testOk) $("selfTest").style.color = "red";
+render();
+</script>
+</body>
+</html>
