@@ -70,7 +70,7 @@ flowchart LR
 3. Printables (checklist, birth certificate, wallet guide) have a **Print / Save as PDF** button and print cleanly on US Letter.
 
 > [!WARNING]
-> **Generating a real seed with the Dice Seed Generator?** Disconnect from the internet or use an air-gapped computer, open the file from disk in a private window with extensions off, and roll real dice. Never screenshot or photograph the words. Write them on paper or metal, then close the tab.
+> **Generating a real seed with the Dice Seed Generator?** Disconnect from the internet or use an air-gapped computer, open the file from disk in a private window with extensions off, and roll real dice. Never screenshot or photograph the words. With your camera covered, write them on paper or metal, then close the tab.
 
 > [!IMPORTANT]
 > Seed words belong on your backup only, never on a screen, in a photo, in the cloud, or on any of these sheets.
