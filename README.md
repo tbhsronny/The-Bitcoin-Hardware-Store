@@ -39,6 +39,7 @@ Open it in a browser and it works, even offline.
 |---|---|---|
 | 📜 | [**Seed Birth Certificate**](seedbirthcertificate.html) | A "vital record" for a new wallet: birth date, entropy source, devices, firmware and fingerprint. Contains no secrets. Type into it or print it blank. |
 | 🗂️ | [**Recovery Card**](recovery%20card.pdf) | Printable card with 24 numbered word lines, a fingerprint box, a QR grid and a passphrase line. |
+| 🔳 | [**SeedQR Builder**](seedqr.html) | Turns a 12 or 24 word seed into a hand-drawn Compact SeedQR, fully offline. Validates the checksum, shows the master fingerprint, guides you row by row through which squares to fill, and prints blank 25×25 / 21×21 grids. |
 
 ### Run a setup
 
@@ -56,6 +57,7 @@ flowchart LR
     B --> C["🎲 Dice Seed<br/><sub>generate entropy</sub>"]
     C --> D["🗂️ Recovery Card<br/><sub>back up the words</sub>"]
     C --> E["📜 Birth Certificate<br/><sub>record the metadata</sub>"]
+    D --> Q["🔳 SeedQR Builder<br/><sub>draw the QR</sub>"]
     T["✅ Setup Checklist<br/><sub>technician runs alongside</sub>"] -.-> C
     T -.-> D
     T -.-> E
@@ -70,7 +72,7 @@ flowchart LR
 3. Printables (checklist, birth certificate, wallet guide) have a **Print / Save as PDF** button and print cleanly on US Letter.
 
 > [!WARNING]
-> **Generating a real seed with the Dice Seed Generator?** Disconnect from the internet or use an air-gapped computer, open the file from disk in a private window with extensions off, and roll real dice. Never screenshot or photograph the words. With your camera covered, write them on paper or metal, then close the tab.
+> **Generating a real seed with the Dice Seed Generator, or drawing one with the SeedQR Builder?** Disconnect from the internet or use an air-gapped computer, open the file from disk in a private window with extensions off, and roll real dice. Never screenshot or photograph the words. With your camera covered, write them on paper or metal, then close the tab.
 
 > [!IMPORTANT]
 > Seed words belong on your backup only, never on a screen, in a photo, in the cloud, or on any of these sheets.
