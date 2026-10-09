@@ -38,7 +38,7 @@ Open it in a browser and it works, even offline.
 | | File | What it does |
 |---|---|---|
 | 📜 | [**Seed Birth Certificate**](seedbirthcertificate.html) | A "vital record" for a new wallet: birth date, entropy source, devices, firmware and fingerprint. Contains no secrets. Type into it or print it blank. |
-| 🗂️ | [**Recovery Card**](recovery%20card.pdf) | Printable card with 24 numbered word lines, a fingerprint box, a QR grid and a passphrase line. |
+| 🗂️ | [**Recovery Card · 21×21**](recovery%20card.pdf) | Printable card with 24 numbered word lines, a fingerprint box, a passphrase line and a 21×21 SeedQR grid for 12-word seeds. |
 | 🗂️ | [**Recovery Card · 25×25**](recovery%20card%2025x25.pdf) | Same card with a 25×25 SeedQR grid, the size a 24-word Compact SeedQR needs. Pair it with the SeedQR Builder. |
 | 🔳 | [**SeedQR Builder**](seedqr.html) | Turns a 12 or 24 word seed into a hand-drawn Compact SeedQR, fully offline. Validates the checksum, shows the master fingerprint, guides you row by row through which squares to fill, and prints blank 25×25 / 21×21 grids. |
 
