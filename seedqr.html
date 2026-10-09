@@ -386,8 +386,8 @@ footer{padding:10px 0 50px;color:var(--ink-faint);font-size:12.5px;font-family:v
         <div class="kbd"><kbd>↑</kbd> <kbd>↓</kbd> change row · <kbd>Enter</kbd> mark filled · click any row on the grid</div>
         <ul class="tips">
           <li>Use a black ballpoint. Felt-tips bleed into neighboring squares. Fill a solid circle that touches all four sides of each square. The corners can stay white.</li>
-          <li>Count from the nearest heavy line. They fall every 5 squares (after E, J, O, T).</li>
-          <li>Row 7 and column G hold the timing stripes, which alternate dark/light between the corner squares. Easy to sanity-check.</li>
+          <li id="tipLines"></li>
+          <li id="tipTiming"></li>
         </ul>
       </aside>
     </div>
@@ -1083,6 +1083,13 @@ function stripSVG(r) {
   return s + '</svg>';
 }
 
+function renderTips(size) {
+  const darks = [];
+  for (let i = 8; i <= size - 9; i += 2) darks.push(COLS[i]);
+  $('#tipLines').innerHTML = `Count from the nearest heavy line. On the ${size} × ${size} grid they fall every 5 squares: after columns E, J, O and T, and after rows 5, 10, 15 and 20. ${size === 21 ? 'Column U and row 21 are the last ones.' : 'The last block is columns U–Y and rows 21–25.'}`;
+  $('#tipTiming').innerHTML = `Row 7 and column G are the timing stripes. Row 7 runs from ${darks[0]} to ${darks[darks.length - 1]}: dark at <b>${darks.join(', ')}</b>, white in between. Column G does the same going down, dark at rows <b>${darks.map((_, k) => 9 + 2 * k).join(', ')}</b>. Easy to sanity-check.`;
+}
+
 function renderGrid() {
   const q = state.qr;
   const size = q ? q.size : state.size;
@@ -1092,6 +1099,7 @@ function renderGrid() {
     row: q ? state.row : null, done: q ? state.done : null, interactive: !!q, templateOnly: !q,
   });
   $('#lgPrinted').style.display = state.printed ? '' : 'none';
+  renderTips(size);
   if (!q) { $('#strip').innerHTML = ''; $('#runs').innerHTML = ''; $('#fillCount').textContent = ''; return; }
 
   const r = state.row, cols = toFill(r), isDone = state.done.has(r);
