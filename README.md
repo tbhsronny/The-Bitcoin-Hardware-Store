@@ -12,7 +12,7 @@ Open it in a browser and it works, even offline.
 ![Single file](https://img.shields.io/badge/single--file-HTML-4B51A2?style=for-the-badge&logo=html5&logoColor=white)
 ![Made in El Salvador](https://img.shields.io/badge/made%20in-El%20Salvador-0F47AF?style=for-the-badge)
 
-[tbhs.sv](https://tbhs.sv)
+**[Open the tools in your browser →](https://tbhsronny.github.io/The-Bitcoin-Hardware-Store/)** · [tbhs.sv](https://tbhs.sv)
 
 </div>
 
