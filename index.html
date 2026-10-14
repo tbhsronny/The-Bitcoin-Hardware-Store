@@ -76,8 +76,9 @@ h1 em{font-style:normal;background:linear-gradient(90deg,var(--orange) 0%,var(--
 .trust b{color:var(--fg);font-weight:600}
 
 /* hero QR art */
-.qr{aspect-ratio:1;width:100%;max-width:380px;justify-self:end;position:relative;border-radius:22px;padding:22px;
+.qr{display:block;aspect-ratio:1;width:100%;max-width:380px;justify-self:end;position:relative;border-radius:22px;padding:22px;text-decoration:none;cursor:pointer;transition:transform .25s,border-color .25s,box-shadow .25s;
   background:linear-gradient(160deg,var(--card-2),var(--card));border:1px solid var(--rule);box-shadow:0 30px 80px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05)}
+.qr:hover{transform:translateY(-4px);border-color:rgba(240,130,30,.6);box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 0 1px rgba(240,130,30,.25),0 0 40px rgba(240,130,30,.18)}
 .qr-grid{display:grid;grid-template-columns:repeat(21,1fr);gap:2px;width:100%;height:100%}
 .qr-grid i{border-radius:2px;background:rgba(255,255,255,.05);transition:background .5s,box-shadow .5s}
 .qr-grid i.on{background:var(--fg)}
@@ -178,10 +179,10 @@ footer .links{display:flex;gap:20px;flex-wrap:wrap}
         <span><b>Printable</b> worksheets</span>
       </div>
     </div>
-    <div class="qr" aria-hidden="true">
-      <div class="qr-grid" id="qr"></div>
-      <span class="qr-tag">SeedQR &middot; offline</span>
-    </div>
+    <a class="qr" href="seedqr.html" aria-label="Open the SeedQR Builder">
+      <div class="qr-grid" id="qr" aria-hidden="true"></div>
+      <span class="qr-tag">SeedQR Builder &rarr;</span>
+    </a>
   </div>
 </header>
 
