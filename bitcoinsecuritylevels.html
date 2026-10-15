@@ -284,6 +284,9 @@ body{overflow-x:clip}
 .chips{display:flex;flex-wrap:wrap;gap:7px}
 .chip-h{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--c);margin:0 0 9px}
 .chips+.chip-h{margin-top:16px}
+.card ul+.chip-h{margin-top:18px}
+.chip-h.risk{color:var(--danger)}
+.card ul.risk li::before{background:var(--danger)}
 .chips span{font-size:13.5px;padding:5px 10px;border-radius:7px;border:1px solid var(--line-2);color:var(--fg);background:rgba(0,0,0,.2)}
 
 @media (max-width:820px){
@@ -641,9 +644,11 @@ const LEVELS=[
    {t:"Knowledge",i:"book",items:["**Protocol:** Bitcoin's cryptographic foundations","**Architecture:** designs custom security from first principles","**Threat modeling:** attack vectors and countermeasures","**Cryptography:** elliptic curves and hash functions","**Operations:** years of experience with complex procedures"]},
    {t:"Security practices",i:"shield",items:["**Custom multisig:** advanced schemes, possibly threshold signatures","**Air-gapped infrastructure:** multiple machines, custom software","**Geographic redundancy:** keys across countries and continents","**Time-based security:** time-lock and inheritance mechanisms","**Physical security:** bank vaults, safe deposit boxes, secure sites","**Decoys:** layered decoy wallets and misdirection","**OPSEC:** military-grade procedures"]},
    {t:"Advanced implementations",i:"spark",items:["**Shamir's Secret Sharing** to split seeds cryptographically","**Custom derivation paths** for extra obfuscation","**Hardware Security Modules** for enterprise key storage","**Faraday cages** for RF-shielded key operations","**Biometric factors** in multi-factor authentication","**Dead man's switch** inheritance with multiple failsafes, such as Deploy delivering a Legacy-encrypted seed from a self-hosted server"]},
-   {t:"Risks",i:"alert",risk:true,items:["Over-engineering creates new failure modes","Extreme complexity can cause loss of access","Target for sophisticated adversaries due to assumed wealth","Enormous maintenance overhead","Hidden single points of failure in complex systems"]},
-   {t:"Tools & infrastructure",i:"device",chips:["Self-built wallet software","Legacy Encryption","Deploy: Deadman Switch","HSMs","Custom air-gapped systems","Faraday cages","Bank vaults","Security firms","Trusts & legal entities"]},
-   {t:"Threats addressed",i:"target",items:["Nation-state level attacks","Physical coercion and $5 wrench attacks","Sophisticated technical attacks","Long-term storage over decades","Complex inheritance scenarios","Regulatory seizure attempts"]}
+   {t:"Threats & risks",i:"target",sections:[
+     {h:"Defends against",items:["Nation-state and sophisticated technical attacks","Physical coercion and $5 wrench attacks","Regulatory seizure attempts","Complex inheritance and decades-long storage"]},
+     {h:"Risks it creates",risk:true,items:["Over-engineering, with hidden single points of failure","Complexity that can lock you out","Enormous maintenance overhead","Assumed wealth attracts sophisticated adversaries"]}
+   ]},
+   {t:"Tools & infrastructure",i:"device",chips:["Self-built wallet software","Legacy Encryption","Deploy: Deadman Switch","HSMs","Custom air-gapped systems","Faraday cages","Bank vaults","Security firms","Trusts & legal entities"]}
   ]}
 ];
 const hue=n=>`var(--l${n})`;
@@ -674,7 +679,8 @@ document.getElementById("levels").innerHTML=LEVELS.map(l=>{
   const cards=l.blocks.map(b=>`
     <article class="card${b.risk?" risk":""}">
       <h3>${ic(b.i)} ${b.t}</h3>
-      ${b.groups?b.groups.map(g=>`<h4 class="chip-h">${g.h}</h4><div class="chips">${g.chips.map(c=>`<span>${fmt(c)}</span>`).join("")}</div>`).join("")
+      ${b.sections?b.sections.map(g=>`<h4 class="chip-h${g.risk?" risk":""}">${g.h}</h4><ul${g.risk?' class="risk"':""}>${g.items.map(x=>`<li>${fmt(x)}</li>`).join("")}</ul>`).join("")
+       :b.groups?b.groups.map(g=>`<h4 class="chip-h">${g.h}</h4><div class="chips">${g.chips.map(c=>`<span>${fmt(c)}</span>`).join("")}</div>`).join("")
        :b.chips?`<div class="chips">${b.chips.map(c=>`<span>${fmt(c)}</span>`).join("")}</div>`
               :`<ul>${b.items.map(x=>`<li>${fmt(x)}</li>`).join("")}</ul>`}
     </article>`).join("");
