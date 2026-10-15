@@ -282,6 +282,8 @@ body{overflow-x:clip}
 .card.risk li::before{background:var(--danger)}
 .card li b{color:var(--fg);font-weight:600}
 .chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip-h{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--c);margin:0 0 9px}
+.chips+.chip-h{margin-top:16px}
 .chips span{font-size:13.5px;padding:5px 10px;border-radius:7px;border:1px solid var(--line-2);color:var(--fg);background:rgba(0,0,0,.2)}
 
 @media (max-width:820px){
@@ -603,7 +605,10 @@ const LEVELS=[
    {t:"Knowledge",i:"book",items:["Deep understanding of private keys and seed phrases","Knows wallet types: hot/cold, mobile/desktop/hardware","Understands UTXO management","Aware of privacy considerations","Solid grasp of Bitcoin's monetary policy"]},
    {t:"Security practices",i:"shield",items:["**Seed phrase security:** written down and stored in multiple secure locations","**Hardware wallet:** Trezor, Ledger, or similar cold storage device","**Backups:** multiple physical copies of the seed phrase","**OPSEC:** separate devices for bitcoin, careful on public WiFi","**Privacy:** understands address reuse and chain analysis"]},
    {t:"Risks",i:"alert",risk:true,items:["Single point of failure: lost seed phrase means lost bitcoin","User error in seed phrase management","Physical security of backup locations","Inheritance and estate planning challenges","Advanced attacks such as physical coercion"]},
-   {t:"Tools",i:"device",chips:["Trezor","Ledger","Coldcard","BitBox","Sparrow","Electrum","Bitcoin Core","Blue Wallet","Green Wallet","Billfodl","Cryptosteel","Password manager","Legacy Encryption","Deploy: Deadman Switch"]},
+   {t:"Tools",i:"device",groups:[
+     {h:"Software tools",chips:["Sparrow","Electrum","Bitcoin Core","Blue Wallet","Green Wallet","Password manager","Legacy Encryption","Deploy: Deadman Switch","Sovereign AI"]},
+     {h:"Hardware tools",chips:["Cold Signing Device","Steel Plate","Bitcoin Node","Bitcoin Miner","Pixel Phone"]}
+   ]},
    {t:"Best practices",i:"spark",items:["Never store seed phrases digitally","Use a passphrase (25th word) for extra security","Test recovery with a small amount first","Keep hardware wallet firmware updated","Maintain detailed inheritance instructions","**Inheritance:** encrypt your seed with Legacy Encryption and let Deploy deliver it to your beneficiary"]}
   ],
   protocol:[
@@ -669,7 +674,8 @@ document.getElementById("levels").innerHTML=LEVELS.map(l=>{
   const cards=l.blocks.map(b=>`
     <article class="card${b.risk?" risk":""}">
       <h3>${ic(b.i)} ${b.t}</h3>
-      ${b.chips?`<div class="chips">${b.chips.map(c=>`<span>${fmt(c)}</span>`).join("")}</div>`
+      ${b.groups?b.groups.map(g=>`<h4 class="chip-h">${g.h}</h4><div class="chips">${g.chips.map(c=>`<span>${fmt(c)}</span>`).join("")}</div>`).join("")
+       :b.chips?`<div class="chips">${b.chips.map(c=>`<span>${fmt(c)}</span>`).join("")}</div>`
               :`<ul>${b.items.map(x=>`<li>${fmt(x)}</li>`).join("")}</ul>`}
     </article>`).join("");
   const div=l.n?`
