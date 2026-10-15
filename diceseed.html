@@ -49,6 +49,19 @@
   .words li.device { border-style: dashed; color: var(--muted); }
   .note { color: var(--muted); font-size: .92rem; margin: 12px 0 0; }
   .ok { color: var(--ok); }
+  .fpbox { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 16px; }
+  .fpbox h3 { font-size: 1rem; margin: 0 0 4px; }
+  .fpbox .note { margin: 0 0 12px; }
+  .fp { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; min-height: 44px; }
+  .fp span { width: 34px; height: 42px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 7px; font: 600 1.25rem/1 ui-monospace, Menlo, Consolas, monospace; }
+  .fp span.empty { color: var(--muted); }
+  .fp em { font-style: normal; color: var(--muted); font-size: .85rem; margin-left: 6px; }
+  .pp { margin-top: 14px; }
+  .pp label { display: block; font-weight: 600; font-size: .92rem; margin-bottom: 6px; }
+  .pp .row { margin-top: 0; flex-wrap: nowrap; }
+  .pp input { flex: 1; min-width: 0; font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .pp input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .pp small { display: block; color: var(--muted); margin-top: 6px; }
   kbd { font-family: ui-monospace, Menlo, monospace; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; font-size: .85em; }
   @media (max-width: 420px) { .dice button { font-size: 1.4rem; padding: 14px 0; } }
   @media print { .no-print { display: none !important; } body { background: #fff; color: #000; } }
@@ -127,6 +140,20 @@
     <h2>3 · Your words</h2>
     <ol class="words" id="words"></ol>
     <p class="note" id="resultNote"></p>
+    <div class="fpbox" id="fpBox">
+      <h3>Master fingerprint</h3>
+      <p class="note">Write this down next to your backup. When you load the seed on your hardware wallet, it should show the same 8 characters.</p>
+      <div class="fp" id="fp" aria-live="polite"></div>
+      <div class="pp no-print">
+        <label for="pp">Passphrase (optional)</label>
+        <div class="row">
+          <input id="pp" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="No passphrase">
+          <button id="ppShow" type="button" aria-label="Show passphrase">Show</button>
+        </div>
+        <small>Only used to show the matching fingerprint. Write your passphrase down separately, never next to your words.</small>
+      </div>
+    </div>
+    <p class="note" id="fpPartial" hidden>No fingerprint here: it depends on the last word, which your hardware wallet picks. Read the fingerprint off the device once the seed is loaded, and write it next to your backup.</p>
     <div class="row no-print">
       <button id="wipe">Wipe everything</button>
     </div>
@@ -140,6 +167,7 @@
       The entropy is then encoded as a standard BIP39 mnemonic.
       This is the same method Coldcard and SeedSigner use for dice seeds, so you can enter the same rolls on one of those devices and check that the words match.
       If you choose "all but the last word", only the first 11/23 words are shown. Each of those words comes straight from the entropy bits. The final word holds a few more entropy bits plus the checksum, and your device works it out.
+      The master fingerprint is the standard BIP32 one: the first 4 bytes of HASH160 of the master public key, derived from the words plus your optional passphrase. It identifies the wallet without revealing anything about the seed.
     </p>
     <p class="note" id="selfTest"></p>
   </div>
@@ -222,6 +250,185 @@ function rollsToMnemonic(rolls, wordCount) {
   return entropyToMnemonic(hash.slice(0, wordCount === 12 ? 16 : 32));
 }
 
+
+// --- BIP32 master fingerprint (same code as the SeedQR Builder) ---
+/* ---------- integer roots for hash constants (avoids hand-typed tables) ---------- */
+function iroot(N, k) {
+  const K = BigInt(k);
+  let x = 1n << BigInt(Math.ceil(N.toString(2).length / k) + 1);
+  for (;;) {
+    const y = ((K - 1n) * x + N / x ** (K - 1n)) / K;
+    if (y >= x) return x;
+    x = y;
+  }
+}
+const PRIMES = (() => {
+  const out = [];
+  for (let n = 2; out.length < 80; n++) if (out.every(p => n % p)) out.push(n);
+  return out;
+})();
+const M32 = (1n << 32n) - 1n, M64 = (1n << 64n) - 1n;
+const SHA256_K = Uint32Array.from(PRIMES.slice(0, 64), p => Number(iroot(BigInt(p) << 96n, 3) & M32));
+const SHA256_H = Uint32Array.from(PRIMES.slice(0, 8), p => Number(iroot(BigInt(p) << 64n, 2) & M32));
+const split64 = v => [Number(v >> 32n), Number(v & M32)];
+const SHA512_K = Uint32Array.from(PRIMES.flatMap(p => split64(iroot(BigInt(p) << 192n, 3) & M64)));
+const SHA512_H = Uint32Array.from(PRIMES.slice(0, 8).flatMap(p => split64(iroot(BigInt(p) << 128n, 2) & M64)));
+
+/* ---------- SHA-512 (64-bit words as hi/lo uint32 pairs) ---------- */
+function sha512(msg) {
+  const len = msg.length, padLen = ((len + 17 + 127) >> 7) << 7;
+  const buf = new Uint8Array(padLen); buf.set(msg); buf[len] = 0x80;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(padLen - 8, Math.floor(len / 0x20000000)); dv.setUint32(padLen - 4, (len * 8) >>> 0);
+  const H = SHA512_H.slice(), W = new Uint32Array(160);
+  // rotate right a 64-bit (h,l) by n; returns [hi, lo]
+  const rh = (h, l, n) => n < 32 ? (h >>> n) | (l << (32 - n)) : (l >>> (n - 32)) | (h << (64 - n));
+  const rl = (h, l, n) => n < 32 ? (l >>> n) | (h << (32 - n)) : (h >>> (n - 32)) | (l << (64 - n));
+  const S = 4294967296;
+  for (let off = 0; off < padLen; off += 128) {
+    for (let t = 0; t < 32; t++) W[t] = dv.getUint32(off + t * 4);
+    for (let t = 16; t < 80; t++) {
+      const xh = W[(t - 15) * 2], xl = W[(t - 15) * 2 + 1];
+      const yh = W[(t - 2) * 2], yl = W[(t - 2) * 2 + 1];
+      const s0h = (rh(xh, xl, 1) ^ rh(xh, xl, 8) ^ (xh >>> 7)) >>> 0;
+      const s0l = (rl(xh, xl, 1) ^ rl(xh, xl, 8) ^ ((xl >>> 7) | (xh << 25))) >>> 0;
+      const s1h = (rh(yh, yl, 19) ^ rh(yh, yl, 61) ^ (yh >>> 6)) >>> 0;
+      const s1l = (rl(yh, yl, 19) ^ rl(yh, yl, 61) ^ ((yl >>> 6) | (yh << 26))) >>> 0;
+      const lo = s0l + s1l + W[(t - 7) * 2 + 1] + W[(t - 16) * 2 + 1];
+      W[t * 2] = s0h + s1h + W[(t - 7) * 2] + W[(t - 16) * 2] + Math.floor(lo / S);
+      W[t * 2 + 1] = lo;
+    }
+    let [ah, al, bh, bl, ch, cl, dh, dl, eh, el, fh, fl, gh, gl, hh, hl] = H;
+    for (let t = 0; t < 80; t++) {
+      const S1h = (rh(eh, el, 14) ^ rh(eh, el, 18) ^ rh(eh, el, 41)) >>> 0;
+      const S1l = (rl(eh, el, 14) ^ rl(eh, el, 18) ^ rl(eh, el, 41)) >>> 0;
+      const chh = ((eh & fh) ^ (~eh & gh)) >>> 0, chl = ((el & fl) ^ (~el & gl)) >>> 0;
+      const t1l = hl + S1l + chl + SHA512_K[t * 2 + 1] + W[t * 2 + 1];
+      const t1h = hh + S1h + chh + SHA512_K[t * 2] + W[t * 2] + Math.floor(t1l / S);
+      const S0h = (rh(ah, al, 28) ^ rh(ah, al, 34) ^ rh(ah, al, 39)) >>> 0;
+      const S0l = (rl(ah, al, 28) ^ rl(ah, al, 34) ^ rl(ah, al, 39)) >>> 0;
+      const mjh = ((ah & bh) ^ (ah & ch) ^ (bh & ch)) >>> 0, mjl = ((al & bl) ^ (al & cl) ^ (bl & cl)) >>> 0;
+      const t2l = S0l + mjl, t2h = S0h + mjh + Math.floor(t2l / S);
+      hh = gh; hl = gl; gh = fh; gl = fl; fh = eh; fl = el;
+      const el2 = dl + (t1l >>> 0);
+      eh = (dh + t1h + Math.floor(el2 / S)) >>> 0; el = el2 >>> 0;
+      dh = ch; dl = cl; ch = bh; cl = bl; bh = ah; bl = al;
+      const al2 = (t1l >>> 0) + (t2l >>> 0);
+      ah = (t1h + t2h + Math.floor(al2 / S)) >>> 0; al = al2 >>> 0;
+    }
+    const v = [ah, al, bh, bl, ch, cl, dh, dl, eh, el, fh, fl, gh, gl, hh, hl];
+    for (let i = 0; i < 16; i += 2) {
+      const lo = H[i + 1] + v[i + 1];
+      H[i] = H[i] + v[i] + Math.floor(lo / S); H[i + 1] = lo;
+    }
+  }
+  const out = new Uint8Array(64), odv = new DataView(out.buffer);
+  H.forEach((v, i) => odv.setUint32(i * 4, v));
+  return out;
+}
+
+/* ---------- RIPEMD-160 ---------- */
+const RMD = {
+  r: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15, 7,4,13,1,10,6,15,3,12,0,9,5,2,14,11,8, 3,10,14,4,9,15,8,1,2,7,0,6,13,11,5,12, 1,9,11,10,0,8,12,4,13,3,7,15,14,5,6,2, 4,0,5,9,7,12,2,10,14,1,3,8,11,6,15,13],
+  rp: [5,14,7,0,9,2,11,4,13,6,15,8,1,10,3,12, 6,11,3,7,0,13,5,10,14,15,8,12,4,9,1,2, 15,5,1,3,7,14,6,9,11,8,12,2,10,0,4,13, 8,6,4,1,3,11,15,0,5,12,2,13,9,7,10,14, 12,15,10,4,1,5,8,7,6,2,13,14,0,3,9,11],
+  s: [11,14,15,12,5,8,7,9,11,13,14,15,6,7,9,8, 7,6,8,13,11,9,7,15,7,12,15,9,11,7,13,12, 11,13,6,7,14,9,13,15,14,8,13,6,5,12,7,5, 11,12,14,15,14,15,9,8,9,14,5,6,8,6,5,12, 9,15,5,11,6,8,13,12,5,12,13,14,11,8,5,6],
+  sp: [8,9,9,11,13,15,15,5,7,7,8,11,14,14,12,6, 9,13,15,7,12,8,9,11,7,7,12,7,6,15,13,11, 9,7,15,11,8,6,6,14,12,13,5,14,13,13,7,5, 15,5,8,11,14,14,6,14,6,9,12,9,12,5,15,8, 8,5,12,9,12,5,14,6,8,13,6,5,15,13,11,11],
+  k: [0, 0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xA953FD4E],
+  kp: [0x50A28BE6, 0x5C4DD124, 0x6D703EF3, 0x7A6D76E9, 0],
+};
+function ripemd160(msg) {
+  const len = msg.length, padLen = ((len + 9 + 63) >> 6) << 6;
+  const buf = new Uint8Array(padLen); buf.set(msg); buf[len] = 0x80;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(padLen - 8, (len * 8) >>> 0, true); dv.setUint32(padLen - 4, Math.floor(len / 0x20000000), true);
+  const f = (j, x, y, z) =>
+    j < 16 ? x ^ y ^ z : j < 32 ? (x & y) | (~x & z) : j < 48 ? (x | ~y) ^ z : j < 64 ? (x & z) | (y & ~z) : x ^ (y | ~z);
+  const rol = (x, n) => (x << n) | (x >>> (32 - n));
+  const h = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0];
+  const X = new Uint32Array(16);
+  for (let off = 0; off < padLen; off += 64) {
+    for (let i = 0; i < 16; i++) X[i] = dv.getUint32(off + i * 4, true);
+    let [A, B, C, D, E] = h, [Ap, Bp, Cp, Dp, Ep] = h;
+    for (let j = 0; j < 80; j++) {
+      const r = j >> 4;
+      let T = (rol((A + f(j, B, C, D) + X[RMD.r[j]] + RMD.k[r]) | 0, RMD.s[j]) + E) | 0;
+      A = E; E = D; D = rol(C, 10); C = B; B = T;
+      T = (rol((Ap + f(79 - j, Bp, Cp, Dp) + X[RMD.rp[j]] + RMD.kp[r]) | 0, RMD.sp[j]) + Ep) | 0;
+      Ap = Ep; Ep = Dp; Dp = rol(Cp, 10); Cp = Bp; Bp = T;
+    }
+    const T = (h[1] + C + Dp) | 0;
+    h[1] = (h[2] + D + Ep) | 0; h[2] = (h[3] + E + Ap) | 0; h[3] = (h[4] + A + Bp) | 0; h[4] = (h[0] + B + Cp) | 0; h[0] = T;
+  }
+  const out = new Uint8Array(20), odv = new DataView(out.buffer);
+  h.forEach((v, i) => odv.setUint32(i * 4, v, true));
+  return out;
+}
+
+/* ---------- HMAC-SHA512 / PBKDF2 ---------- */
+function concat(...arrs) {
+  const out = new Uint8Array(arrs.reduce((n, a) => n + a.length, 0));
+  let o = 0; for (const a of arrs) { out.set(a, o); o += a.length; }
+  return out;
+}
+function hmacSha512(key, msg) {
+  if (key.length > 128) key = sha512(key);
+  const k = new Uint8Array(128); k.set(key);
+  const ipad = k.map(b => b ^ 0x36), opad = k.map(b => b ^ 0x5c);
+  return sha512(concat(opad, sha512(concat(ipad, msg))));
+}
+function pbkdf2Sha512(password, salt, iterations) {
+  let u = hmacSha512(password, concat(salt, Uint8Array.of(0, 0, 0, 1)));
+  const t = u.slice();
+  for (let i = 1; i < iterations; i++) {
+    u = hmacSha512(password, u);
+    for (let j = 0; j < 64; j++) t[j] ^= u[j];
+  }
+  return t;
+}
+
+/* ---------- secp256k1 (affine, BigInt) ---------- */
+const EC = {
+  p: 2n ** 256n - 2n ** 32n - 977n,
+  n: 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n,
+  G: [0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n,
+      0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n],
+};
+function modp(a) { const r = a % EC.p; return r < 0n ? r + EC.p : r; }
+function invp(a) {
+  let [lm, hm, low, high] = [1n, 0n, modp(a), EC.p];
+  while (low > 1n) { const q = high / low; [lm, hm, low, high] = [hm - lm * q, lm, high - low * q, low]; }
+  return modp(lm);
+}
+function ecAdd(P, Q) {
+  if (!P) return Q; if (!Q) return P;
+  const [x1, y1] = P, [x2, y2] = Q;
+  let m;
+  if (x1 === x2) {
+    if (modp(y1 + y2) === 0n) return null;
+    m = modp(3n * x1 * x1 * invp(2n * y1));
+  } else m = modp((y2 - y1) * invp(x2 - x1));
+  const x3 = modp(m * m - x1 - x2);
+  return [x3, modp(m * (x1 - x3) - y1)];
+}
+function ecMul(k) {
+  let R = null, P = EC.G;
+  while (k > 0n) { if (k & 1n) R = ecAdd(R, P); P = ecAdd(P, P); k >>= 1n; }
+  return R;
+}
+const bytesToBig = b => BigInt('0x' + toHex(b));
+
+const utf8 = s => new TextEncoder().encode(s.normalize('NFKD'));
+
+function masterFingerprint(mnemonic, passphrase) {
+  const seed = pbkdf2Sha512(utf8(mnemonic), utf8('mnemonic' + (passphrase || '')), 2048);
+  const I = hmacSha512(new TextEncoder().encode('Bitcoin seed'), seed);
+  const k = bytesToBig(I.slice(0, 32));
+  if (k === 0n || k >= EC.n) throw new Error('invalid master key');
+  const [x, y] = ecMul(k);
+  const pub = concat(Uint8Array.of(y & 1n ? 3 : 2), Uint8Array.from(x.toString(16).padStart(64, '0').match(/../g), h => parseInt(h, 16)));
+  return toHex(ripemd160(sha256(pub)).slice(0, 4));
+}
+
 // --- Self-test against known vectors, so a corrupted copy of this file refuses to run ---
 function selfTest() {
   const checks = [
@@ -232,6 +439,10 @@ function selfTest() {
     entropyToMnemonic(new Uint8Array(16)).join(" ") === "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
     entropyToMnemonic(new Uint8Array(32).fill(0xff)).join(" ") === "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote",
     entropyToMnemonic(new Uint8Array(16).fill(0x7f)).join(" ") === "legal winner thank year wave sausage worth useful legal winner thank yellow",
+    toHex(sha512(ascii("abc"))) === "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+    toHex(ripemd160(ascii("abc"))) === "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc",
+    // BIP84 reference wallet ("abandon ... about", no passphrase)
+    masterFingerprint("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", "") === "73c5da0a",
   ];
   return checks.every(Boolean);
 }
@@ -239,6 +450,7 @@ function selfTest() {
 // --- UI ---
 const $ = id => document.getElementById(id);
 let rolls = "";
+let mnemonic = null, fpTimer;
 
 const wordCount = () => Number(document.querySelector('input[name="len"]:checked').value);
 const target = () => (wordCount() === 12 ? 50 : 99);
@@ -254,6 +466,44 @@ function render() {
   $("undo").disabled = $("clear").disabled = rolls.length === 0;
   $("result").hidden = true;
   $("words").textContent = "";
+  clearFp();
+}
+
+// --- Fingerprint UI ---
+function paintFp(fp) {
+  const s = fp || "--------";
+  $("fp").textContent = "";
+  for (const c of s) {
+    const span = document.createElement("span");
+    span.textContent = c;
+    if (!fp) span.className = "empty";
+    $("fp").append(span);
+  }
+  if (fp && $("pp").value) {
+    const em = document.createElement("em");
+    em.textContent = "with passphrase";
+    $("fp").append(em);
+  }
+}
+
+function computeFp() {
+  if (!mnemonic) return;
+  const m = mnemonic, pp = $("pp").value;
+  paintFp(null);
+  const em = document.createElement("em");
+  em.textContent = "calculating…";
+  $("fp").append(em);
+  // let the browser paint "calculating…" before the PBKDF2 + EC math blocks the thread
+  setTimeout(() => { if (m === mnemonic && pp === $("pp").value) paintFp(masterFingerprint(m, pp)); }, 30);
+}
+
+function clearFp() {
+  mnemonic = null;
+  clearTimeout(fpTimer);
+  $("pp").value = "";
+  $("pp").type = "password";
+  $("ppShow").textContent = "Show";
+  paintFp(null);
 }
 
 function addRoll(v) { rolls += v; render(); }
@@ -282,7 +532,11 @@ function generate() {
     ? `Enter these ${n - 1} words on your hardware wallet and let it calculate word ${n}. ` +
       `Your device may choose a different valid last word than the "full seed" option would. That's normal: several words pass the checksum, and any of them is valid.`
     : `This full ${n}-word seed includes the checksum word. On a Coldcard or SeedSigner, entering the same ${rolls.length} rolls should give exactly these words.`;
+  $("fpBox").hidden = partial;
+  $("fpPartial").hidden = !partial;
+  mnemonic = partial ? null : words.join(" ");
   $("result").hidden = false;
+  if (!partial) computeFp();
   $("result").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -297,10 +551,17 @@ $("undo").addEventListener("click", () => { rolls = rolls.slice(0, -1); render()
 $("clear").addEventListener("click", () => { rolls = ""; render(); });
 $("gen").addEventListener("click", generate);
 $("wipe").addEventListener("click", wipe);
+$("pp").addEventListener("input", () => { clearTimeout(fpTimer); fpTimer = setTimeout(computeFp, 300); });
+$("ppShow").addEventListener("click", () => {
+  const show = $("pp").type === "password";
+  $("pp").type = show ? "text" : "password";
+  $("ppShow").textContent = show ? "Hide" : "Show";
+});
 document.querySelectorAll('input[name="len"], input[name="out"]').forEach(r => r.addEventListener("change", render));
 
 document.addEventListener("keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.matches && e.target.matches('input[type="text"], input[type="password"]')) return; // typing a passphrase
   if (/^[1-6]$/.test(e.key)) { e.preventDefault(); addRoll(e.key); }
   else if (e.key === "Backspace") { e.preventDefault(); rolls = rolls.slice(0, -1); render(); }
   else if (e.key === "Enter" && !$("gen").disabled) { e.preventDefault(); generate(); }
@@ -318,7 +579,7 @@ updateNet();
 
 const testOk = selfTest();
 $("selfTest").textContent = testOk
-  ? "Self-test passed: SHA-256 and BIP39 test vectors match and the wordlist is intact."
+  ? "Self-test passed: SHA-256, SHA-512, RIPEMD-160, BIP39 and fingerprint test vectors match and the wordlist is intact."
   : "SELF-TEST FAILED: this file may be corrupted. Do not use it.";
 $("selfTest").className = "note " + (testOk ? "ok" : "");
 if (!testOk) $("selfTest").style.color = "red";
